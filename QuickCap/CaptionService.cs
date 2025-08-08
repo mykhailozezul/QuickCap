@@ -18,6 +18,7 @@ namespace QuickCap
         public string OutputFilename { get; set; }
         public string OutputFolderName { get; set; }
         private List<CaptionInput> Input { get; set; }
+        private static int SequenceCount { get; set; }
         public CaptionService(
             int width,
             int height,
@@ -68,55 +69,49 @@ namespace QuickCap
             }            
         }
 
-        public void ProcessSingleInput(CaptionInput item, SKImageInfo canvasParams, SKPaint paint, int index, string fileName)
+        private void ProcessSingleInput(CaptionInput item, SKImageInfo canvasParams, SKPaint paint, int index, string fileName)
         {
-            var image = GetImage(canvasParams, paint, item);
-            var imageBytes = EncodeImage(image);
-            SaveImage(fileName, imageBytes, index);
+            var surface = SKSurface.Create(canvasParams);
+            int lines = CountLines(item.Text);
+
+            for (int i = 1; i <= lines; i++)
+            {
+                SequenceCount++;
+                var line = GetLine(i, item.Text);
+                var lineLengths = GetLineLengths(line, paint);
+                var lineCoords = GetLineCoordinates(lineLengths);
+                DrawLine(surface, i, lineCoords, line, paint);
+                var image = surface.Snapshot();
+                var imageBytes = EncodeImage(image);
+                SaveImage(fileName, imageBytes, SequenceCount, index);
+            }
         }
 
-        public void SaveImage(string fileName, byte[] byteData, int index)
+        private void SaveImage(string fileName, byte[] byteData, int index, int group)
         {
+            string root = "output";
+            //Directory.CreateDirectory(root);
+            string groupDir = root + "/" + this.OutputFolderName + group.ToString("D3");
+            Directory.CreateDirectory(groupDir);
             string sequenceCounter = index.ToString("D3");//separate
-            File.WriteAllBytes(fileName + sequenceCounter + ".png", byteData);
+            File.WriteAllBytes(groupDir + "/" + fileName + sequenceCounter + ".png", byteData);
         }
 
-        public byte[] EncodeImage(SKImage image)
+        private byte[] EncodeImage(SKImage image)
         {
             SKData pngImage = image.Encode(SKEncodedImageFormat.Png, 100);
             byte[] imageBytes = pngImage.ToArray();
             return imageBytes;
         }
 
-        public SKImage GetImage(SKImageInfo canvasParams, SKPaint paint, CaptionInput input)
-        {
-            var surface = SKSurface.Create(canvasParams);
-            WriteTextOnCanvas(surface.Canvas, input, paint);
-            var image = surface.Snapshot();
-            return image;
-        }
-
-        public void WriteTextOnCanvas(SKCanvas canvas, CaptionInput input, SKPaint paint)
-        {
-            int lines = CountLines(input.Text);
-
-            for (int i = 1; i <= lines; i++)
-            {
-                var line = GetLine(i, input.Text);
-                var lineLengths = GetLineLengths(line, paint);
-                var lineCoords = GetLineCoordinates(lineLengths);
-                DrawLine(canvas, i, lineCoords, line, paint);
-            }
-        }
-
-        private void DrawLine(SKCanvas canvas, int lineNum, List<int> coords, List<string> line, SKPaint paint)
+        private void DrawLine(SKSurface surface, int lineNum, List<int> coords, List<string> line, SKPaint paint)
         {
             int y = GetYCoordinate();
             for (int i = 0; i < line.Count; i++)
             {
                 string text = line[i];
                 int x = coords[i];
-                canvas.DrawText(text, x, y + (lineNum * this.LineHeight), paint);
+                surface.Canvas.DrawText(text, x, y + (lineNum * this.LineHeight), paint);
             }
         }
 
@@ -195,7 +190,7 @@ namespace QuickCap
             return result;
         }
 
-        public SKTypeface GetFontByName(string fontName)
+        private SKTypeface GetFontByName(string fontName)
         {
             return SKTypeface.FromFile(fontName);
         }
@@ -205,7 +200,7 @@ namespace QuickCap
             return (int)(this.Height * this.Position);
         }
 
-        public SKPaint GetPaintStyle(SKTypeface font, int fontSize, uint textColor, SKTextAlign textAlign)
+        private SKPaint GetPaintStyle(SKTypeface font, int fontSize, uint textColor, SKTextAlign textAlign)
         {            
             if (font != null)
             {
