@@ -1,5 +1,8 @@
 ﻿using SkiaSharp;
 using System.Collections.Generic;
+using System.Drawing;
+using System.Text.RegularExpressions;
+using static System.Net.Mime.MediaTypeNames;
 
 namespace QuickCap
 {
@@ -14,11 +17,17 @@ namespace QuickCap
         private string FileName { get; set; }
         private string GroupName { get; set; }
         private SKImageInfo SurfaceImageInfo { get; set; }
-        private int LineHeight { get; set; }
+        private SKPaint Paint { get; set; }
+
+        public int LineHeight { get; set; }
+        public int FontSize { get; set; }
+        public string FontName { get; set; }
+        public uint TextColor { get; set; }
+        public double Position { get; set; }
 
         private const string NEW_LINE_STRING = "[newline]";
 
-        public CaptionsService(int width, int height)
+        public CaptionsService(int width, int height, string fontName, int fontSize = 50, uint textColor = 0xffffffff, double position = 0.7)
         {
             SequenceCount = 0;
             GroupCount = 0;
@@ -26,8 +35,26 @@ namespace QuickCap
             GroupName = "group";
             Width = width;
             Height = height;
-            LineHeight = 50;//////////////////
+            FontSize = fontSize;
+            LineHeight = FontSize;
+            FontName = fontName;
+            TextColor = textColor;
+            Position = position;
             SurfaceImageInfo = new SKImageInfo(Width, Height);
+
+            UpdateStyles();
+        }
+
+        public void UpdateStyles()
+        {
+            Paint = new SKPaint
+            {
+                Typeface = SKTypeface.FromFile(FontName),
+                TextSize = FontSize,
+                Color = new SKColor(TextColor),
+                IsAntialias = true,
+                TextAlign = SKTextAlign.Left
+            };
         }
 
         public void SetInput(List<CaptionInput> input)
@@ -159,16 +186,25 @@ namespace QuickCap
             for (int i = 0; i < line.Count; i++)
             {
                 var el = line[i];
+                
                 Output[el].x = runningX;
-                runningX += (int)GetTextWidth(Output[el].Text);
+                if (!IsCommandWord(Output[el].Text))
+                {
+                    runningX += (int)GetTextWidth(Output[el].Text) + GetSpaceWidth();
+                }                
             }
         }
+
         private int GetWidthsSum(List<int> line)
         {
             int sum = 0;
 
             foreach (var el in line)
             {
+                if (IsCommandWord(Output[el].Text))
+                {
+                    continue;
+                }
                 sum += (int)GetTextWidth(Output[el].Text);
             }
 
@@ -214,19 +250,14 @@ namespace QuickCap
             return result;
         }
 
-        public double GetTextWidth(string text)
+        private double GetTextWidth(string text)
         {
-            ///////////////////////////////////////////////////////////////////////////////////////
-            SKPaint paint = new SKPaint
-            {
-                Typeface = SKTypeface.FromFile("Anton-Regular.ttf"),
-                TextSize = 50,
-                Color = new SKColor(0xffffffff),
-                IsAntialias = true,
-                TextAlign = SKTextAlign.Left
-            };
-            ///////////////////////////////////////////////////////////////////////////////////////
-            return paint.MeasureText(text);
+            return Paint.MeasureText(text);
+        }
+
+        private int GetSpaceWidth()
+        {            
+            return (int)Paint.MeasureText(" ");
         }
 
         private void CreateImages()
@@ -247,16 +278,12 @@ namespace QuickCap
         }
 
         private void ProcessSingleOutput(CaptionOutput output, SKSurface surface)
-        {
-            ///////////////////////////////////////
-            surface.Canvas.DrawText(output.Text, output.x, 500 + (output.y * LineHeight), new SKPaint
+        {            
+            if (IsCommandWord(output.Text))
             {
-                Typeface = SKTypeface.FromFile("Anton-Regular.ttf"),
-                TextSize = 50,
-                Color = new SKColor(0xffffffff),
-                IsAntialias = true,
-                TextAlign = SKTextAlign.Left
-            });////////////////
+                return;
+            }
+            surface.Canvas.DrawText(output.Text, output.x, (int)(Height * Position) + (output.y * LineHeight), Paint);////////////////
             if (output.Render)
             {
                 var image = surface.Snapshot();
@@ -286,6 +313,10 @@ namespace QuickCap
         private string GetGroupName(int num)
         {
             return GroupName + num.ToString("D3");
+        }
+        private bool IsCommandWord(string text)
+        {
+            return text.Contains("[newline]") || Regex.IsMatch(text, @"\[wait\(\d*\)\]");
         }
     }
 }

@@ -2,7 +2,7 @@
 
 int videoWidth = 1080;
 int videoHeight = 1980;
-//string fontName = "Anton-Regular.ttf";
+string fontName = "Anton-Regular.ttf";
 
 var input = new List<CaptionInput>()
 {
@@ -12,7 +12,7 @@ var input = new List<CaptionInput>()
     new CaptionInput(new List<string> { "to spin more", "[newline]", "compared to when only", "[newline]", "the inner ring rotates" })
 };
 
-var captionsService = new CaptionsService(videoWidth, videoHeight);
+var captionsService = new CaptionsService(videoWidth, videoHeight, fontName);
 
 captionsService.SetInput(input);
 captionsService.ProcessInputs();
