@@ -1,4 +1,6 @@
 ﻿using SkiaSharp;
+using System;
+using System.Reflection;
 using System.Text.RegularExpressions;
 
 namespace QuickCap
@@ -12,13 +14,13 @@ namespace QuickCap
         public int FontSize { get; set; }
         public int LineHeight { get; set; }
         public uint Color { get; set; }
-        public SKTextAlign TextAlign { get; set; }
-        public bool IsAdditiveMode { get; set; }
         public bool IsTimingSequence { get; set; }
         public string OutputFilename { get; set; }
         public string OutputFolderName { get; set; }
         private List<CaptionInput> Input { get; set; }
         private static int SequenceCount { get; set; }
+        private SKPaint ServiceLevelPaint { get; set; }
+        private SKImageInfo ServiceLevelCanvasParams { get; set; }
         public CaptionService(
             int width,
             int height,
@@ -27,8 +29,6 @@ namespace QuickCap
             int fontSize = 60, 
             int lineHeight = 60,
             uint color = 0xffffffff,
-            SKTextAlign textAlign = SKTextAlign.Left,
-            bool isAdditiveMode = true,
             bool isTimingSequence = false,
             string outPutFilename = "caption",
             string outputFolderName = "group"
@@ -41,11 +41,13 @@ namespace QuickCap
             this.FontSize = fontSize;
             this.LineHeight = lineHeight;
             this.Color = color;
-            this.TextAlign = textAlign;
-            this.IsAdditiveMode = isAdditiveMode;
             this.IsTimingSequence = isTimingSequence;
             this.OutputFilename = outPutFilename;
             this.OutputFolderName = outputFolderName;
+
+            var font = GetFontByName(this.FontName);
+            this.ServiceLevelPaint = GetPaintStyle(font, this.FontSize, this.Color);
+            this.ServiceLevelCanvasParams = new SKImageInfo(this.Width, this.Height);
         }
 
         public void SetInput(List<CaptionInput> input)
@@ -54,47 +56,40 @@ namespace QuickCap
         }
 
         public void GenerateCaptions()
-        {
-            var font = GetFontByName(this.FontName);
-            var paint = GetPaintStyle(font, this.FontSize, this.Color, this.TextAlign);
-            var canvasParams = new SKImageInfo(this.Width, this.Height);
-
-            if (paint != null)
+        {            
+            if (this.ServiceLevelPaint != null)
             {                
                 for (int i = 0; i < this.Input.Count; i++)
                 {
                     var item = this.Input[i];
-                    ProcessSingleInput(item, canvasParams, paint, i, this.OutputFilename);
+                    ProcessSingleInput(item, i);
                 }
             }            
         }
 
-        private void ProcessSingleInput(CaptionInput item, SKImageInfo canvasParams, SKPaint paint, int index, string fileName)
+        private void ProcessSingleInput(CaptionInput item, int index)
         {
-            var surface = SKSurface.Create(canvasParams);
+            var surface = SKSurface.Create(this.ServiceLevelCanvasParams);
             int lines = CountLines(item.Text);
 
             for (int i = 1; i <= lines; i++)
             {
-                SequenceCount++;
                 var line = GetLine(i, item.Text);
-                var lineLengths = GetLineLengths(line, paint);
+                var lineLengths = GetLineLengths(line);
                 var lineCoords = GetLineCoordinates(lineLengths);
-                DrawLine(surface, i, lineCoords, line, paint);
-                var image = surface.Snapshot();
-                var imageBytes = EncodeImage(image);
-                SaveImage(fileName, imageBytes, SequenceCount, index);
+
+                DrawLine(surface, i, lineCoords, line, this.ServiceLevelPaint, index);                
             }
+            surface.Dispose();
         }
 
-        private void SaveImage(string fileName, byte[] byteData, int index, int group)
+        private void SaveImage(byte[] byteData, int group)
         {
             string root = "output";
-            //Directory.CreateDirectory(root);
             string groupDir = root + "/" + this.OutputFolderName + group.ToString("D3");
             Directory.CreateDirectory(groupDir);
-            string sequenceCounter = index.ToString("D3");//separate
-            File.WriteAllBytes(groupDir + "/" + fileName + sequenceCounter + ".png", byteData);
+            string sequenceCounter = SequenceCount.ToString("D3");//auto calc TO DO
+            File.WriteAllBytes(groupDir + "/" + this.OutputFilename + sequenceCounter + ".png", byteData);
         }
 
         private byte[] EncodeImage(SKImage image)
@@ -104,15 +99,55 @@ namespace QuickCap
             return imageBytes;
         }
 
-        private void DrawLine(SKSurface surface, int lineNum, List<int> coords, List<string> line, SKPaint paint)
+        private void DrawLine(SKSurface surface, int lineNum, List<int> coords, List<string> line, SKPaint paint, int index)
         {
+            var timing = GetTimingMap(line);
             int y = GetYCoordinate();
             for (int i = 0; i < line.Count; i++)
-            {
+            {                
                 string text = line[i];
                 int x = coords[i];
                 surface.Canvas.DrawText(text, x, y + (lineNum * this.LineHeight), paint);
+
+                if (timing[i] == false)
+                {
+                    SequenceCount++;
+                    var image = surface.Snapshot();
+                    var imageBytes = EncodeImage(image);
+                    SaveImage(imageBytes, index);
+                }                
             }
+        }
+
+        private List<bool> GetTimingMap(List<string> list)
+        {            
+            List<int> indexes = new List<int>();
+
+            for (int i = 0; i < list.Count; i++)
+            {
+                string item = list[i];
+                if (string.Equals(item, "[newline]"))
+                {
+                    indexes.Add(i-1);
+                    indexes.Add(i);
+                }
+            }
+
+            List<bool> result = new List<bool>();
+
+            for (int i = 0; i < list.Count; i++)
+            {
+                if (indexes.Contains(i))
+                {
+                    result.Add(true);
+                }
+                else
+                {
+                    result.Add(false);
+                }
+            }
+
+            return result;
         }
 
         private List<int> GetLineCoordinates(List<double> list)
@@ -133,23 +168,25 @@ namespace QuickCap
         }
 
 
-        private List<double> GetLineLengths(List<string> list, SKPaint paint)
+        private List<double> GetLineLengths(List<string> list)
         {
             List<double> result = new List<double>();
-            double spaceWidth = GetSpaceWidth(paint);
+            double spaceWidth = GetSpaceWidth();
 
             foreach (string item in list)
             {
-                result.Add(paint.MeasureText(item) + spaceWidth);
+                result.Add(this.ServiceLevelPaint.MeasureText(item) + spaceWidth);
             }
 
             return result;
         }
-        private double GetSpaceWidth(SKPaint paint)
+
+        private double GetSpaceWidth()
         {
-            double spaceWidth = paint.MeasureText(" ");
+            double spaceWidth = this.ServiceLevelPaint.MeasureText(" ");
             return spaceWidth;
         }
+
         private List<string> GetLine(int num, List<string> list)
         {
             int counter = 1;
@@ -200,7 +237,7 @@ namespace QuickCap
             return (int)(this.Height * this.Position);
         }
 
-        private SKPaint GetPaintStyle(SKTypeface font, int fontSize, uint textColor, SKTextAlign textAlign)
+        private SKPaint GetPaintStyle(SKTypeface font, int fontSize, uint textColor)
         {            
             if (font != null)
             {
@@ -210,7 +247,7 @@ namespace QuickCap
                     TextSize = fontSize,
                     Color = new SKColor(textColor),
                     IsAntialias = true,
-                    TextAlign = textAlign
+                    TextAlign = SKTextAlign.Left
                 };
 
                 return paint;
