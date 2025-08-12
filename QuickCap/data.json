@@ -1,0 +1,11 @@
+[
+  {
+    "Text": [ "One", "[newline]", "Two" ]
+  },
+  {
+    "Text": [ "Three", "[newline]", "", "Four" ]
+  },
+  {
+    "Text": [ "Five", "Two" ]
+  }
+]

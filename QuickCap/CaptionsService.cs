@@ -1,13 +1,10 @@
 ﻿using SkiaSharp;
-using System.Drawing;
 using System.Text.RegularExpressions;
 
 namespace QuickCap
 {
     public class CaptionsService
-    {
-        private int Width { get; set; }
-        private int Height { get; set; }
+    {        
         private List<CaptionInput> Input { get; set; }
         private List<CaptionOutput> Output { get; set; }
         private int SequenceCount { get; set; }
@@ -15,7 +12,8 @@ namespace QuickCap
         private SKImageInfo SurfaceImageInfo { get; set; }
         private SKPaint Paint { get; set; }
 
-
+        public int Width { get; set; }
+        public int Height { get; set; }
         public int LineHeight { get; set; }
         public int FontSize { get; set; }
         public string FontName { get; set; }
@@ -27,7 +25,7 @@ namespace QuickCap
 
         private const string NEW_LINE_STRING = "[newline]";
 
-        public CaptionsService(int width, int height, string fontName, List<CaptionInput> input, int fontSize = 50, uint textColor = 0xffffffff, double position = 0.7)
+        public CaptionsService(int width, int height, string fontName, int fontSize = 50, uint textColor = 0xffffffff, double position = 0.7)
         {
             SequenceCount = 0;
             GroupCount = 0;
@@ -42,7 +40,11 @@ namespace QuickCap
             Position = position;
             SurfaceImageInfo = new SKImageInfo(Width, Height);
             Paint = GetStyle(FontName, FontSize, TextColor);
-            this.Input = input;
+        }
+
+        public void SetInputs(List<CaptionInput> input)
+        {
+            Input = input;
         }
 
         private SKPaint GetStyle(string fontName, int fontSize, uint color)
@@ -95,6 +97,7 @@ namespace QuickCap
             foreach (var item in input.Text)
             {
                 SequenceCount++;
+
                 SKPaint paint = Paint;
                 if (CaptionInput.IsCustom(input))
                 {
@@ -398,6 +401,7 @@ namespace QuickCap
             string groupDir = root + "/" + GetGroupName(output.GroupNumber);
             Directory.CreateDirectory(groupDir);
             File.WriteAllBytes(groupDir + "/" + GetFileName(output.FileNumber), byteData);
+            DataReader.WriteMessage("Saved file " + GetFileName(output.FileNumber));
         }
 
         private string GetFileName(int num)
