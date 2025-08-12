@@ -1,8 +1,6 @@
 ﻿using SkiaSharp;
-using System.Collections.Generic;
 using System.Drawing;
 using System.Text.RegularExpressions;
-using static System.Net.Mime.MediaTypeNames;
 
 namespace QuickCap
 {
@@ -13,21 +11,23 @@ namespace QuickCap
         private List<CaptionInput> Input { get; set; }
         private List<CaptionOutput> Output { get; set; }
         private int SequenceCount { get; set; }
-        private int GroupCount { get; set; }
-        private string FileName { get; set; }
-        private string GroupName { get; set; }
+        private int GroupCount { get; set; }                
         private SKImageInfo SurfaceImageInfo { get; set; }
         private SKPaint Paint { get; set; }
+
 
         public int LineHeight { get; set; }
         public int FontSize { get; set; }
         public string FontName { get; set; }
         public uint TextColor { get; set; }
         public double Position { get; set; }
+        public string FileName { get; set; }
+        private string GroupName { get; set; }
+
 
         private const string NEW_LINE_STRING = "[newline]";
 
-        public CaptionsService(int width, int height, string fontName, int fontSize = 50, uint textColor = 0xffffffff, double position = 0.7)
+        public CaptionsService(int width, int height, string fontName, List<CaptionInput> input, int fontSize = 50, uint textColor = 0xffffffff, double position = 0.7)
         {
             SequenceCount = 0;
             GroupCount = 0;
@@ -41,25 +41,36 @@ namespace QuickCap
             TextColor = textColor;
             Position = position;
             SurfaceImageInfo = new SKImageInfo(Width, Height);
-
-            UpdateStyles();
-        }
-
-        public void UpdateStyles()
-        {
-            Paint = new SKPaint
-            {
-                Typeface = SKTypeface.FromFile(FontName),
-                TextSize = FontSize,
-                Color = new SKColor(TextColor),
-                IsAntialias = true,
-                TextAlign = SKTextAlign.Left
-            };
-        }
-
-        public void SetInput(List<CaptionInput> input)
-        {
+            Paint = GetStyle(FontName, FontSize, TextColor);
             this.Input = input;
+        }
+
+        private SKPaint GetStyle(string fontName, int fontSize, uint color)
+        {            
+            var paint = new SKPaint
+            {
+                Typeface = SKTypeface.FromFile(fontName),
+                TextSize = fontSize,
+                Color = new SKColor(color),
+                IsAntialias = true,
+                TextAlign = SKTextAlign.Left,
+            };
+            return paint;
+        }
+
+        private SKPaint ConvertToStrokeStyle(SKPaint inputPaint, int strokeWidth, uint strokeColor)
+        {
+            var paint = new SKPaint
+            {
+                Typeface = inputPaint.Typeface,
+                TextSize = inputPaint.TextSize,
+                Color = strokeColor,
+                IsAntialias = true,
+                TextAlign = SKTextAlign.Left,
+                StrokeWidth = strokeWidth,
+                Style = SKPaintStyle.Stroke
+            };
+            return paint;
         }
 
         public void ProcessInputs()
@@ -72,6 +83,7 @@ namespace QuickCap
                 ConvertCaptionInput(input);
             }
 
+            DisableCommandWords();
             CreateTimingMap();
             CreateYCoordinates();
             CreateXCoordinates();
@@ -83,12 +95,71 @@ namespace QuickCap
             foreach (var item in input.Text)
             {
                 SequenceCount++;
+                SKPaint paint = Paint;
+                if (CaptionInput.IsCustom(input))
+                {
+                    paint = GetCustomPaint(input);
+                }
+
+                double position = Position;
+                if (CaptionInput.IsCustomPosition(input))
+                {
+                    position = input.Position;
+                }
+
+                int lineHeight = LineHeight;
+                if (CaptionInput.IsCustomLineHeight(input))
+                {
+                    lineHeight = input.LineHeight;
+                }
+
                 Output.Add(new CaptionOutput
                 {
                     Text = item,
                     FileNumber = SequenceCount,
                     GroupNumber = GroupCount,
+                    Paint = paint,
+                    Position = position,
+                    LineHeight = lineHeight,
+                    IsStroke = input.IsStroke,
+                    StrokeColor = input.StrokeColor,
+                    StrokeWidth = input.StrokeWidth
                 });
+            }
+        }
+
+        private SKPaint GetCustomPaint(CaptionInput input)
+        {
+            int fontSize = FontSize;
+            uint textColor = TextColor;
+            string fontName = FontName;
+
+            if (CaptionInput.IsCustomTextSize(input))
+            {
+                fontSize = input.TextSize;
+            }
+
+            if (CaptionInput.IsCustomTextColor(input))
+            {
+                textColor = input.TextColor;
+            }
+
+            if (CaptionInput.IsCustomFontName(input))
+            {
+                fontName = input.FontName;
+            }
+
+            return GetStyle(fontName, fontSize, textColor);
+        }
+
+        private void DisableCommandWords()
+        {
+            foreach (var item in Output)
+            {
+                if (!IsCommandWord(item.Text))
+                {
+                    item.Enabled = true;
+                }
             }
         }
 
@@ -177,20 +248,29 @@ namespace QuickCap
             {
                 var sum = GetWidthsSum(line);
                 var spacer = (Width - sum) / 2;
+
+                if (spacer < 0)
+                {
+                    string msg = line.Aggregate("", (acc, item) => acc + Output[item].Text);
+                    Warning("\"" + msg + "\" => is outside of bounds");
+                }
+
                 UpdateXCoord(line, spacer);
             }
         }
+
         private void UpdateXCoord(List<int> line, int spacer)
         {
             int runningX = spacer;
             for (int i = 0; i < line.Count; i++)
             {
                 var el = line[i];
-                
-                Output[el].x = runningX;
-                if (!IsCommandWord(Output[el].Text))
-                {
-                    runningX += (int)GetTextWidth(Output[el].Text) + GetSpaceWidth();
+                var item = Output[el];
+
+                item.x = runningX;
+                if (item.Enabled && !string.IsNullOrEmpty(item.Text))
+                {                    
+                    runningX += GetTextWidth(item.Text, item.Paint) + GetSpaceWidth(item.Paint);                                                              
                 }                
             }
         }
@@ -201,11 +281,12 @@ namespace QuickCap
 
             foreach (var el in line)
             {
-                if (IsCommandWord(Output[el].Text))
+                var item = Output[el];
+                if (!item.Enabled)
                 {
                     continue;
                 }
-                sum += (int)GetTextWidth(Output[el].Text);
+                sum += GetTextWidth(item.Text, item.Paint);
             }
 
             return sum;
@@ -250,19 +331,19 @@ namespace QuickCap
             return result;
         }
 
-        private double GetTextWidth(string text)
+        private int GetTextWidth(string text, SKPaint paint)
         {
-            return Paint.MeasureText(text);
+            return (int)paint.MeasureText(text);
         }
 
-        private int GetSpaceWidth()
+        private int GetSpaceWidth(SKPaint paint)
         {            
-            return (int)Paint.MeasureText(" ");
+            return (int)paint.MeasureText(" ");
         }
 
         private void CreateImages()
         {
-            int currentGroup = 1;
+            int currentGroup = 0;
             var surface = SKSurface.Create(SurfaceImageInfo);
 
             foreach (var item in Output)
@@ -278,25 +359,39 @@ namespace QuickCap
         }
 
         private void ProcessSingleOutput(CaptionOutput output, SKSurface surface)
-        {            
-            if (IsCommandWord(output.Text))
+        {
+            if (output.Enabled)
             {
-                return;
-            }
-            surface.Canvas.DrawText(output.Text, output.x, (int)(Height * Position) + (output.y * LineHeight), Paint);////////////////
-            if (output.Render)
-            {
-                var image = surface.Snapshot();
-                var imageBytes = EncodeImage(image);
-                SaveImage(imageBytes, output);
-            }
+                surface.Canvas.DrawText(output.Text, output.x, GetPosition(output.Position) + (output.y * output.LineHeight), output.Paint);
+
+                if (output.IsStroke)
+                {
+                    var strokePaint = ConvertToStrokeStyle(output.Paint, output.StrokeWidth, output.StrokeColor);
+                    surface.Canvas.DrawText(output.Text, output.x, GetPosition(output.Position) + (output.y * output.LineHeight), strokePaint);
+                    strokePaint.Dispose();
+                }
+
+                if (output.Render)
+                {
+                    var image = surface.Snapshot();
+                    var imageBytes = EncodeImage(image);
+                    SaveImage(imageBytes, output);
+                }
+            }            
         }
+
+        private int GetPosition(double position)
+        {
+            return (int)(Height * position);
+        }
+
         private byte[] EncodeImage(SKImage image)
         {
             SKData pngImage = image.Encode(SKEncodedImageFormat.Png, 100);
             byte[] imageBytes = pngImage.ToArray();
             return imageBytes;
         }
+
         private void SaveImage(byte[] byteData, CaptionOutput output)
         {
             string root = "output";
@@ -314,9 +409,17 @@ namespace QuickCap
         {
             return GroupName + num.ToString("D3");
         }
+
         private bool IsCommandWord(string text)
         {
             return text.Contains("[newline]") || Regex.IsMatch(text, @"\[wait\(\d*\)\]");
+        }
+
+        private void Warning(string message)
+        {
+            Console.ForegroundColor = ConsoleColor.Red;
+            Console.WriteLine(message);
+            Console.ForegroundColor = ConsoleColor.White;
         }
     }
 }
