@@ -43,7 +43,6 @@ output/
 ```
 <img width="216" height="396" alt="caption005" src="https://github.com/user-attachments/assets/d8c0af5a-70ce-4755-b028-fb1f18fbec77" />
 <img width="216" height="396" alt="caption003" src="https://github.com/user-attachments/assets/9bffb63c-6b20-49fa-8fbc-766e7e0f2aab" />
-<img width="216" height="396" alt="caption008" src="https://github.com/user-attachments/assets/726868b7-a6d1-4a64-8e60-5244940cb764" />
 <img width="216" height="396" alt="caption009" src="https://github.com/user-attachments/assets/9495470e-8296-4f8b-9b62-4778b7a4ee12" />
 
 ## Features
