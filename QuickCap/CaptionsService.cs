@@ -396,7 +396,7 @@ namespace QuickCap
         {
             string root = "output";
             string groupDir = root + "/" + GetGroupName(output.GroupNumber);
-            Directory.CreateDirectory(groupDir);            
+            Directory.CreateDirectory(groupDir);
             File.WriteAllBytes(groupDir + "/" + GetFileName(output.FileNumber), byteData);
         }
 
