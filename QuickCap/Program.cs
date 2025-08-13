@@ -11,5 +11,5 @@ if (data != null && config != null)
     config.SetInputs(data);
     config.ProcessInputs();
 }
-
+DataReader.WriteMessage("Done. Press \"Enter\" to exit");
 Console.ReadLine();

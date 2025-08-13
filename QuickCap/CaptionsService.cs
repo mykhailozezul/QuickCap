@@ -255,7 +255,7 @@ namespace QuickCap
                 if (spacer < 0)
                 {
                     string msg = line.Aggregate("", (acc, item) => acc + Output[item].Text);
-                    Warning("\"" + msg + "\" => is outside of bounds");
+                    DataReader.WriteWarning("\"" + msg + "\" => is outside of bounds");
                 }
 
                 UpdateXCoord(line, spacer);
@@ -419,13 +419,6 @@ namespace QuickCap
         private bool IsCommandWord(string text)
         {
             return text.Contains("[newline]") || Regex.IsMatch(text, @"\[wait\(\d*\)\]");
-        }
-
-        private void Warning(string message)
-        {
-            Console.ForegroundColor = ConsoleColor.Red;
-            Console.WriteLine(message);
-            Console.ForegroundColor = ConsoleColor.White;
         }
     }
 }
