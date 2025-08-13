@@ -95,7 +95,7 @@ namespace QuickCap
         private void ConvertCaptionInput(CaptionInput input)
         {
             foreach (var item in input.Text)
-            {
+            {                
                 SequenceCount++;
 
                 SKPaint paint = Paint;
@@ -346,7 +346,8 @@ namespace QuickCap
 
         private void CreateImages()
         {
-            int currentGroup = 0;
+            SequenceCount = 0;
+            int currentGroup = 0;            
             var surface = SKSurface.Create(SurfaceImageInfo);
 
             foreach (var item in Output)
@@ -364,7 +365,7 @@ namespace QuickCap
         private void ProcessSingleOutput(CaptionOutput output, SKSurface surface)
         {
             if (output.Enabled)
-            {
+            {                
                 surface.Canvas.DrawText(output.Text, output.x, GetPosition(output.Position) + (output.y * output.LineHeight), output.Paint);
 
                 if (output.IsStroke)
@@ -376,6 +377,7 @@ namespace QuickCap
 
                 if (output.Render)
                 {
+                    SequenceCount++;
                     var image = surface.Snapshot();
                     var imageBytes = EncodeImage(image);
                     SaveImage(imageBytes, output);
@@ -400,13 +402,13 @@ namespace QuickCap
             string root = "output";
             string groupDir = root + "/" + GetGroupName(output.GroupNumber);
             Directory.CreateDirectory(groupDir);
-            File.WriteAllBytes(groupDir + "/" + GetFileName(output.FileNumber), byteData);
-            DataReader.WriteMessage("Saved file " + GetFileName(output.FileNumber));
+            File.WriteAllBytes(groupDir + "/" + GetFileName(), byteData);
+            DataReader.WriteMessage("Saved file " + GetFileName());
         }
 
-        private string GetFileName(int num)
+        private string GetFileName()
         {
-            return FileName + num.ToString("D3") + ".png";
+            return FileName + SequenceCount.ToString("D3") + ".png";
         }
 
         private string GetGroupName(int num)
