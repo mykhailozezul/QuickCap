@@ -6,7 +6,10 @@ string configFileName = "config.json";
 var data = DataReader.ReadData(dataFileName);
 var config = DataReader.ReadConfig(configFileName);
 
-config.SetInputs(data);
-config.ProcessInputs();
+if (data != null && config != null)
+{
+    config.SetInputs(data);
+    config.ProcessInputs();
+}
 
 Console.ReadLine();

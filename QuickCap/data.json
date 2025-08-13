@@ -1,11 +1,14 @@
 [
   {
-    "Text": [ "One", "[newline]", "Two" ]
+    "Text": [ "to spin more", "[newline]", "compared to when only", "[newline]", "", "the inner ring rotates" ],
+    "LineHeight": 80,
+    "IsStroke": true,
+    "StrokeColor": 4294901760
   },
   {
-    "Text": [ "Three", "[newline]", "", "Four" ]
+    "Text": [ "it actually matters", "[newline]", "which ring is fixed", "and which one rotates" ]
   },
   {
-    "Text": [ "Five", "Two" ]
+    "Text": [ "Rotation of the outer ring", "[newline]", "causes the balls and separator" ]
   }
 ]

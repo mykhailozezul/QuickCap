@@ -1,5 +1,7 @@
 {
-    "Width": 1080,
-    "Height": 1920,
-    "FontName": "Anton-Regular.ttf"
+  "Width": 1080,
+  "Height": 1920,
+  "FontName": "Anton-Regular.ttf",
+  "TextColor": 2863258623,
+  "Position": 0.5
 }
